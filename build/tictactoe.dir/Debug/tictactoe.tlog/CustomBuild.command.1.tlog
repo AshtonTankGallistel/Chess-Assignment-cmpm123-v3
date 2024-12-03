@@ -1,0 +1,10 @@
+^C:\USERS\ASHTO\DOCUMENTS\CMPM 123\CHESS ASSIGNMENT V3\CHESS-ASSIGNMENT-CMPM123-V3\CMAKELISTS.TXT
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" "-SC:/Users/Ashto/Documents/CMPM 123/Chess assignment v3/Chess-Assignment-cmpm123-v3" "-BC:/Users/Ashto/Documents/CMPM 123/Chess assignment v3/Chess-Assignment-cmpm123-v3/build" --check-stamp-file "C:/Users/Ashto/Documents/CMPM 123/Chess assignment v3/Chess-Assignment-cmpm123-v3/build/CMakeFiles/generate.stamp"
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

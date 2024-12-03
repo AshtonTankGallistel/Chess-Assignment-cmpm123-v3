@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\Ashto\Documents\CMPM 123\Chess assignment v3\Chess-Assignment-cmpm123-v3\build\CMakeFiles\74ffad1eacafc5d46e68ac16ea05fbb9\PACKAGE_force.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{9C20CAC6-BB42-3B12-9E20-20D1C3FAEEF8}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

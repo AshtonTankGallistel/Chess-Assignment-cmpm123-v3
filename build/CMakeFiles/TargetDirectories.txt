@@ -1,0 +1,4 @@
+C:/Users/Ashto/Documents/CMPM 123/Chess assignment v3/Chess-Assignment-cmpm123-v3/build/CMakeFiles/tictactoe.dir
+C:/Users/Ashto/Documents/CMPM 123/Chess assignment v3/Chess-Assignment-cmpm123-v3/build/CMakeFiles/PACKAGE.dir
+C:/Users/Ashto/Documents/CMPM 123/Chess assignment v3/Chess-Assignment-cmpm123-v3/build/CMakeFiles/ALL_BUILD.dir
+C:/Users/Ashto/Documents/CMPM 123/Chess assignment v3/Chess-Assignment-cmpm123-v3/build/CMakeFiles/ZERO_CHECK.dir
