@@ -12,11 +12,11 @@ Chess::Chess()
 }
 
 Chess::ChessState::ChessState(){
-    for(bool i : canCastle){
-        i = true;
+    for(int i = 0; i < 4; i++){ // 4 = num of bools in canCastle
+        canCastle[i] = true;
     }
-    for(bool i : canEnPassant){
-        i = false;
+    for(int i = 0; i < 16; i++){
+        canEnPassant[i] = false;
     }
     halfMoves = 0;
     totalMoves = 0;
@@ -119,7 +119,7 @@ void Chess::bitMovedFromTo(Bit &bit, BitHolder &src, BitHolder &dst)
     ChessSquare& srcSquare = static_cast<ChessSquare&>(src);
     ChessSquare& dstSquare = static_cast<ChessSquare&>(dst);
     //PROMOTE
-    std::cout<<dstSquare.getRow()<<std::endl;
+    std::cout<<srcSquare.getSquareIndex()<<std::endl;
     if(bit.gameTag() % 128 == Pawn && (dstSquare.getRow() == 0 || dstSquare.getRow() == 7)){
         setPiece(dstSquare.getSquareIndex(), bit.gameTag() / 128, Queen);
     }
@@ -138,11 +138,37 @@ void Chess::bitMovedFromTo(Bit &bit, BitHolder &src, BitHolder &dst)
             myState->canCastle[3] = false; break;
         //kings
         case 4: //W
-            myState->canCastle[0] = false; break;
-            myState->canCastle[1] = false; break;
-        case 59: //B
-            myState->canCastle[2] = false; break;
-            myState->canCastle[3] = false; break;
+            //if move left, queenside
+            if(dstSquare.getSquareIndex() == 2 && myState->canCastle[0] == true){
+                //move the tower piece
+                _grid[0][3].setBit(_grid[0][0].bit());
+                _grid[0][3].bit()->setPosition(_grid[0][3].getPosition());
+                _grid[0][0].setBit(nullptr);
+            }//if right, kingside
+            else if(dstSquare.getSquareIndex() == 6 && myState->canCastle[1] == true){
+                _grid[0][5].setBit(_grid[0][7].bit());
+                _grid[0][5].bit()->setPosition(_grid[0][5].getPosition());
+                _grid[0][7].setBit(nullptr);
+            }
+            myState->canCastle[0] = false;
+            myState->canCastle[1] = false;
+            break;
+        case 60: //B
+            //if move left, queenside
+            if(dstSquare.getSquareIndex() == 58 && myState->canCastle[2] == true){
+                //move the tower piece
+                _grid[7][3].setBit(_grid[7][0].bit());
+                _grid[7][3].bit()->setPosition(_grid[7][3].getPosition());
+                _grid[7][0].setBit(nullptr);
+            }//if right, kingside
+            else if(dstSquare.getSquareIndex() == 62 && myState->canCastle[3] == true){
+                _grid[7][5].setBit(_grid[7][7].bit());
+                _grid[7][5].bit()->setPosition(_grid[7][5].getPosition());
+                _grid[7][7].setBit(nullptr);
+            }
+            myState->canCastle[2] = false;
+            myState->canCastle[3] = false;
+            break;
     }
     switch(dstSquare.getSquareIndex()){ //when the piece is captured
         //towers
@@ -206,7 +232,8 @@ std::vector<int>* Chess::getPossibleMoves(Bit &bit, BitHolder &src){
         //add the 2 move forward
         if(srcSquare.getRow() == 1 + 5 * (bit.gameTag() / 128)){ //2 when W, 6 when B
             if(0 <= srcSquare.getRow() + 2*direction && 7 >= srcSquare.getRow() + 2*direction
-                && _grid[srcSquare.getRow() + 2*direction][srcSquare.getColumn()].empty()){
+                && _grid[srcSquare.getRow() + 2*direction][srcSquare.getColumn()].empty()
+                && _grid[srcSquare.getRow() + direction][srcSquare.getColumn()].empty()){ //only when empty space between
                     possibleMoves[moveCount] = 8*(srcSquare.getRow() + 2*direction) + srcSquare.getColumn();
                     moveList->push_back(8*(srcSquare.getRow() + 2*direction) + srcSquare.getColumn());
                     moveCount += 1;
@@ -360,7 +387,6 @@ std::vector<int>* Chess::getPossibleMoves(Bit &bit, BitHolder &src){
                 }
             }
         }
-        /*
         //consider castling
         if(myState->canCastle[bit.gameTag() / 128]){ //left castle
             int i = srcSquare.getSquareIndex(); //i = index. used for readability
@@ -377,7 +403,6 @@ std::vector<int>* Chess::getPossibleMoves(Bit &bit, BitHolder &src){
                 moveList->push_back(8*(srcSquare.getRow()) + srcSquare.getColumn() + 2);
             }
         }
-        */
         break;
     default:
         printf("default");
