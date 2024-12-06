@@ -66,7 +66,8 @@ private:
     struct ChessState{
         //note: i'm going to try and change the arrays to bytes later. putting this comment to remind myself
         bool canCastle[4]; //{leftWhite,RightWhite,LeftBlack,RightBlack}
-        bool canEnPassant[16]; //White 0-7, Black 0-7
+        int EnPassantSpace; //The space where an EnPassant can be performed. -1 means there's no space to do so. 
+                            //There can only ever be 1 enPassant-able space at a time, hence it being an int.
         int halfMoves; //num of moves since the last time a pawn moved or a piece was captured (1 per player)
         int totalMoves; //num of moves total (1 per both players)
         ChessState();

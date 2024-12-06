@@ -15,9 +15,7 @@ Chess::ChessState::ChessState(){
     for(int i = 0; i < 4; i++){ // 4 = num of bools in canCastle
         canCastle[i] = true;
     }
-    for(int i = 0; i < 16; i++){
-        canEnPassant[i] = false;
-    }
+    EnPassantSpace = -1;
     halfMoves = 0;
     totalMoves = 0;
 }
@@ -66,10 +64,17 @@ void Chess::setUpBoard()
     }
 
     //setup pieces. 0=W,1=B
+    /*
     FENtoBoard("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
     for(bool i : myState->canCastle){
         i = true;
     }
+    */
+    //FENtoBoard("5k2/8/8/8/8/8/8/4K2R w K - 0 1"); // white can castle
+    //FENtoBoard("3k4/8/8/8/8/8/8/R3K3 w Q - 0 1"); // white can castle queen side
+    FENtoBoard("r3k2r/1b4bq/8/8/8/8/7B/R3K2R w KQkq - 0 1"); // white can castle both sides
+    //FENtoBoard("2K2r2/4P3/8/8/8/8/8/3k4 w - - 0 1"); // white can promote to queen
+    //FENtoBoard("4k3/1P6/8/8/8/8/K7/8 w - - 0 1"); // white can promote to queen
 
     //generate moves for starting player
     generateMoves();
@@ -119,11 +124,25 @@ void Chess::bitMovedFromTo(Bit &bit, BitHolder &src, BitHolder &dst)
     ChessSquare& srcSquare = static_cast<ChessSquare&>(src);
     ChessSquare& dstSquare = static_cast<ChessSquare&>(dst);
     //PROMOTE
-    std::cout<<srcSquare.getSquareIndex()<<std::endl;
+    std::cout<<"hello"<<srcSquare.getSquareIndex()<<std::endl;
     if(bit.gameTag() % 128 == Pawn && (dstSquare.getRow() == 0 || dstSquare.getRow() == 7)){
         setPiece(dstSquare.getSquareIndex(), bit.gameTag() / 128, Queen);
     }
     //STATE UPDATE
+    //EN PASSANT
+    if(bit.gameTag() % 128 == Pawn && dstSquare.getSquareIndex() == myState->EnPassantSpace){
+        if(bit.gameTag()/128 == 0){ //W capturing B
+            std::cout<<dstSquare.getRow() + 1<<std::endl;
+            _grid[dstSquare.getRow() - 1][dstSquare.getColumn()].destroyBit();
+        }
+        else{
+            _grid[dstSquare.getRow() + 1][dstSquare.getColumn()].destroyBit();
+        }
+    }
+    myState->EnPassantSpace = -1;
+    if(bit.gameTag() % 128 == Pawn && (srcSquare.getRow() - dstSquare.getRow()) % 2 == 0){ //when a pawn jumps by 2
+        myState->EnPassantSpace = srcSquare.getSquareIndex() + 8 - (16 * (bit.gameTag()/128));//up a row if W, down a row if B
+    }
     //CASTLING
     //below statements always ran, since they start true and can't become true again
     switch(srcSquare.getSquareIndex()){ //when the piece moves
@@ -220,8 +239,9 @@ std::vector<int>* Chess::getPossibleMoves(Bit &bit, BitHolder &src){
             //add diagonals (done here since we know there's room vertically)
             for(int i=-1;i<=1;i+=2){
                 if(0 <= srcSquare.getColumn() + i && 7 >= srcSquare.getColumn() + i){
-                    if(!_grid[srcSquare.getRow() + direction][srcSquare.getColumn() + i].empty()
-                    && _grid[srcSquare.getRow() + direction][srcSquare.getColumn() + i].bit()->gameTag() / 128 != bit.gameTag() / 128){
+                    if((!_grid[srcSquare.getRow() + direction][srcSquare.getColumn() + i].empty() //diagonal for piece capture only
+                    && _grid[srcSquare.getRow() + direction][srcSquare.getColumn() + i].bit()->gameTag() / 128 != bit.gameTag() / 128)
+                    || myState->EnPassantSpace == 8*(srcSquare.getRow() + direction) + srcSquare.getColumn() + i){ //..or en passant
                         possibleMoves[moveCount] = 8*(srcSquare.getRow() + direction) + srcSquare.getColumn() + i;
                         moveList->push_back(8*(srcSquare.getRow() + direction) + srcSquare.getColumn() + i);
                         moveCount += 1;
@@ -388,15 +408,16 @@ std::vector<int>* Chess::getPossibleMoves(Bit &bit, BitHolder &src){
             }
         }
         //consider castling
-        if(myState->canCastle[bit.gameTag() / 128]){ //left castle
+        if(myState->canCastle[2*(bit.gameTag() / 128)]){ //left castle
             int i = srcSquare.getSquareIndex(); //i = index. used for readability
             //if all 3 between pieces are empty, can castle
+            std::cout<<_grid[(i-1)/8][(i-1)%8].empty()<<_grid[(i-2)/8][(i-2)%8].empty()<<_grid[(i-3)/8][(i-3)%8].empty()<<std::endl;
             if(_grid[(i-1)/8][(i-1)%8].empty() && _grid[(i-2)/8][(i-2)%8].empty() && _grid[(i-3)/8][(i-3)%8].empty()){
                 moveList->push_back(8*(srcSquare.getRow()) + srcSquare.getColumn() - 2);
             }
         
         }
-        if(myState->canCastle[bit.gameTag() / 128 + 1]){ //right castle
+        if(myState->canCastle[2*(bit.gameTag() / 128) + 1]){ //right castle
             int i = srcSquare.getSquareIndex(); //i = index. used for readability
             //if all 3 between pieces are empty, can castle
             if(_grid[(i+1)/8][(i+1)%8].empty() && _grid[(i+2)/8][(i+2)%8].empty()){
@@ -502,12 +523,10 @@ void Chess::FENtoBoard(std::string FEN){
 
     //set default game state. some may be overriden, and we can't fully tell which will/won't as we go.
     //As such, all are set to false to be safe. These can be overriden manually after calling this if needed
-    for(bool i : myState->canCastle){
-        i = false;
+    for(int i = 0; i < 4; i++){ // 4 = num of bools in canCastle
+        myState->canCastle[i] = false;
     }
-    for(bool i : myState->canEnPassant){
-        i = false;
-    }
+    myState->EnPassantSpace = -1;
     myState->halfMoves = 0;
     myState->totalMoves = 0;
 
@@ -539,20 +558,11 @@ void Chess::FENtoBoard(std::string FEN){
         gameState++;
         //EN PASSANT
         if(FEN[gameState] != '-'){
-            while(FEN[gameState] != ' '){
-                //for each pair (pair= char and number) get the position in enPas array
-                int enPasPosition = FEN[gameState] - 97; //get pos in 8 spots
-                //determine if w or b
-                if(FEN[gameState] == 54){ //54 = lane 6 = black piece
-                    enPasPosition += 8; //set to latter half since
-                }
-                myState->canEnPassant[enPasPosition] = true;
-                gameState += 2;
-            }
+            //en passant goes L#, where L=letter=col pos and #=number=row pos. 
+            myState->EnPassantSpace = (FEN[gameState] - 97) + ((FEN[gameState+1] - 48)*8);
         }
-        else{
-            gameState += 2;
-        }
+        gameState += 2;
+
         //MOVE COUNTERS
         while(FEN[gameState] != '-' && FEN[gameState] != ' '){
             myState->halfMoves *= 10;
