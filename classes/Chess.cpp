@@ -207,6 +207,9 @@ void Chess::bitMovedFromTo(Bit &bit, BitHolder &src, BitHolder &dst)
             myState->canCastle[2] = false; break;
             myState->canCastle[3] = false; break;
     }
+    //MOVE COUNTER
+    myState->halfMoves += 1;
+    myState->totalMoves = myState->halfMoves / 2;
     //wrap up turn
     clearHighlights(); //clear highlights from move
     endTurn();
@@ -684,5 +687,11 @@ void Chess::setStateString(const std::string &s)
 //
 void Chess::updateAI() 
 {
+    //note to self:
+    //the current move gen code relies on bitholder board.
+    //You should make sure to modify that code so that it uses integers instead,
+    //with the regular gen function pulling the ints from the biholder board, and the AI using it's own board
+    //Also, find a way to implement the special moves (castle+enpassant) into the reg move lists.
+    //each move has a max of 64; perhaps you could use the remaining bit
 }
 

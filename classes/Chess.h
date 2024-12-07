@@ -76,3 +76,14 @@ private:
     //MAIN GAMESTATE VAR. TRACKS THE CURRENT GAMESTATE.
     ChessState* myState;
 };
+
+struct ChessAI
+{
+    int   _grid[3][3];
+    int evaluateBoard();
+    int negamax(ChessAI* state, int depth, int playerColor, int alpha, int beta);
+    int ownerAt(int index ) const;
+    int AICheckForWinner();
+
+    int AIPlayerNumber; //which player is the AI
+};
