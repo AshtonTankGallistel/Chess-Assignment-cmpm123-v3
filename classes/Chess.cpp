@@ -1,4 +1,5 @@
 #include "Chess.h"
+#include "Evaluate.h"
 
 const int AI_PLAYER = 1;
 const int HUMAN_PLAYER = -1;
@@ -890,7 +891,7 @@ void Chess::updateAI()
 {
     int target = -1; //impossible value, will get replaced in below loop
     int movedBit = -1; //the bit moved. the target is the move performed to move it
-    int bestVal = -999; //lower than all other vals
+    int bestVal = -999999; //lower than all other vals
     //std::cout << target <<" "<< bestVal << std::endl;
     ChessAI* myAI = clone(1);
     int enemyPlayer = 1 - myAI->AIPlayerNumber; //the playerNumber of the enemy player
@@ -903,11 +904,11 @@ void Chess::updateAI()
     int currEPSpace = myAI->myState->EnPassantSpace;
     for(int i = 0; i < 64; i++){
         //9999 = infinity in this loop, as no other value should be higher than it
-        int topAlpha = -9999;
-        int topBeta = 9999;
+        int topAlpha = -999999;
+        int topBeta = 999999;
         if(potentialMoves[i] != nullptr){
             for(int move : *(potentialMoves[i])){
-                std::cout << "move"<<move;
+                //std::cout << "move"<<move;
                 //perform move
                 myAI->performMoveOnArray(i, move, myAI->myState->myBoard);
                 int turnVal = -myAI->negamax(myAI,0,enemyPlayer, -topBeta, -topAlpha);
@@ -933,6 +934,7 @@ void Chess::updateAI()
             }
         }
     }
+    std::cout<<"best:"<<bestVal<<std::endl;
 
     _grid[(target%128) / 8][(target%128) % 8].setBit(_grid[movedBit/8][movedBit%8].bit());
     _grid[(target%128) / 8][(target%128) % 8].bit()->setPosition(_grid[(target%128) / 8][(target%128) % 8].getPosition());
@@ -943,14 +945,14 @@ void Chess::updateAI()
 }
 
 int ChessAI::negamax(ChessAI* myAI, int depth, int playerColor, int alpha, int beta){
-    int result = -99; //lower than all possible negamax results
+    int result = -99999; //lower than all possible negamax results
     //if board is full, set result to 0 (overriden later if there's a win)
     //if(myAI->isBoardFull()){
     //    result = 0;
     //}
     //if either player won, that's the result
-    int boardState = 0; //myAI->evaluateBoard();
-    if(boardState != 0 || depth > 3){ //stops when surpassing the 3rd ayer of depth
+    int boardState = myAI->evaluateBoard();
+    if(/*boardState != 0 || */depth > 3){ //stops when surpassing the 3rd layer of depth
         if(playerColor == AIPlayerNumber){
             result = boardState;
         }
@@ -958,7 +960,7 @@ int ChessAI::negamax(ChessAI* myAI, int depth, int playerColor, int alpha, int b
             result = -boardState;
         }
     }
-    else if(result == -99){ //If no winner (nor a tie), run through possible turns.
+    else if(result == -99999){ //If no winner (nor a tie), run through possible turns.
         //generate moves
         std::vector<int>* turnMoves[64];
         for(int i = 0;i<64;i++){
@@ -1012,7 +1014,10 @@ int ChessAI::negamax(ChessAI* myAI, int depth, int playerColor, int alpha, int b
                     }
                 }
             }
-        }    
+        }
+        if(result == -99999){ //result is still base val, meaning no moves were performed
+            result = 0;
+        }
     }
     return result;
 }
@@ -1171,4 +1176,37 @@ void ChessAI::unperformMove(int bit, int move, int targetArray[8][8]){
     }
     myState->halfMoves += 1;
     myState->totalMoves = myState->halfMoves / 2;
+}
+
+int ChessAI::evaluateBoard(){
+    //Use the tables from Evaluate.h to evaluate results. the numbers are how good they are for black
+    //piece scores taken from provided Evaluate.h
+    //loop through the board, score each piece
+    int score = 0;
+    for(int i = 0; i < 64; i++){
+        int bitGT = myState->myBoard[i/8][i%8];
+        //note: (bitGT / 64 - 1) is because I need -1 for W and 1 for B.
+        //2*(bitGT/128) gets 0 and 2, but I'm able to simplify it (bitGT/64) since no details are stored in the 64 bit
+        //then -1 for the offset needed
+        switch(bitGT % 128){
+            case Pawn:
+                score += (100 + pawnTable[i]) * (bitGT / 64 - 1); break;
+            case Knight:
+                score += (200 + knightTable[i]) * (bitGT / 64 - 1); break;
+            case Bishop:
+                score += (230 + bishopTable[i]) * (bitGT / 64 - 1); break;
+            case Rook:
+                score += (400 + rookTable[i]) * (bitGT / 64 - 1); break;
+            case Queen:
+                score += (900 + queenTable[i]) * (bitGT / 64 - 1); break;
+            case King:
+                score += (2000 + kingTable[i]) * (bitGT / 64 - 1); break;
+            default:
+                break;
+        }
+    }
+    if(AIPlayerNumber != 1){ //if AI is not playing B, flip the score
+        return -score;
+    }
+    return score;
 }
