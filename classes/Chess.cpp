@@ -59,6 +59,10 @@ Bit* Chess::PieceForPlayer(const int playerNumber, ChessPiece piece)
 void Chess::setUpBoard()
 {
     setNumberOfPlayers(2);
+    //In the event of a restart:
+    if(getCurrentPlayer()->playerNumber() == 1){
+        endTurn();
+    }
     _gameOptions.rowX = 8;
     _gameOptions.rowY = 8;
     //
