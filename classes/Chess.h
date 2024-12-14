@@ -33,11 +33,11 @@ struct ChessAI
     int negamax(ChessAI* state, int depth, int playerColor, int alpha, int beta);
     int ownerAt(int index ) const;
     int AICheckForWinner();
-    //UPDATES ARRAY BASED ON INPUTTED MOVE
-    void performMoveOnArray(int bit, int move, int targetArray[8][8]);
+    //UPDATES ARRAY BASED ON INPUTTED MOVE, RETURNS GAMETAG OF CAPTURED PIECE (0 IF NONE)
+    int performMoveOnArray(int bit, int move, int targetArray[8][8]);
     //UNDOES CHANGE THAT WOULD HAVE BEEN PERFORMED BY MOVE.
     //DOES NOT UNDO CASTLE/E.P.SPACE CHANGES, MUST BE TRACKED ELSEWHERE
-    void unperformMove(int bit, int move, int targetArray[8][8]);
+    void unperformMove(int bit, int move, int targetArray[8][8], int capturedPiece);
 
     int AIPlayerNumber; //which player is the AI
 };

@@ -910,10 +910,10 @@ void Chess::updateAI()
             for(int move : *(potentialMoves[i])){
                 //std::cout << "move"<<move;
                 //perform move
-                myAI->performMoveOnArray(i, move, myAI->myState->myBoard);
+                int capturedPiece = myAI->performMoveOnArray(i, move, myAI->myState->myBoard);
                 int turnVal = -myAI->negamax(myAI,0,enemyPlayer, -topBeta, -topAlpha);
                 //un-perform move
-                myAI->unperformMove(i, move, myAI->myState->myBoard);
+                myAI->unperformMove(i, move, myAI->myState->myBoard, capturedPiece);
                 //revert state
                 for(int i = 0; i < 4; i++){ // 4 = num of bools in canCastle
                     myAI->myState->canCastle[i] = currentCastles[i];
@@ -996,11 +996,11 @@ int ChessAI::negamax(ChessAI* myAI, int depth, int playerColor, int alpha, int b
                 for(int move : *(turnMoves[i])){
                     //std::cout << myAI->_grid[i/3][i%3];
                     //perform move
-                    myAI->performMoveOnArray(i, move, myAI->myState->myBoard);
+                    int capturedPiece = myAI->performMoveOnArray(i, move, myAI->myState->myBoard);
                     //negamax
                     result = std::max(result, -negamax(myAI,depth + 1, 1 - playerColor, -beta, -alpha));
                     //un-perform move
-                    myAI->unperformMove(i, move, myAI->myState->myBoard);
+                    myAI->unperformMove(i, move, myAI->myState->myBoard, capturedPiece);
                     //revert state
                     for(int i = 0; i < 4; i++){ // 4 = num of bools in canCastle
                         myAI->myState->canCastle[i] = currentCastles[i];
@@ -1035,9 +1035,10 @@ ChessAI* Chess::clone(int AInum)
     return newGame;
 }
 
-void ChessAI::performMoveOnArray(int bit, int move, int targetArray[8][8]){
+int ChessAI::performMoveOnArray(int bit, int move, int targetArray[8][8]){
     int bitGT = targetArray[bit/8][bit%8];
     int pos = move % 128; //remove 128 that signals a special move if needed
+    int capturedPiece = targetArray[pos/8][pos%8];
     targetArray[pos/8][pos%8] = bitGT;
     targetArray[bit/8][bit%8] = 0;
     //check if pawn reached end of board to promote
@@ -1133,12 +1134,13 @@ void ChessAI::performMoveOnArray(int bit, int move, int targetArray[8][8]){
     }
     myState->halfMoves += 1;
     myState->totalMoves = myState->halfMoves / 2;
+    return capturedPiece;
 }
 
-void ChessAI::unperformMove(int bit, int move, int targetArray[8][8]){
+void ChessAI::unperformMove(int bit, int move, int targetArray[8][8], int capturedPiece){
     int pos = move % 128; //remove 128 that signals a special move if needed
     targetArray[bit/8][bit%8] = targetArray[pos/8][pos%8];
-    targetArray[pos/8][pos%8] = 0;
+    targetArray[pos/8][pos%8] = capturedPiece;
     if(move / 128 == 1){ //special move handler. DOES NOT REVERT STATE TRACKING, MUST BE DONE ELSEWHERE
         int bitGT = targetArray[bit/8][bit%8];
         if(bitGT % 128 == Pawn){ //en passant
