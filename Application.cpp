@@ -8,6 +8,7 @@ namespace ClassGame {
         //
         Chess *game = nullptr;
         bool gameOver = false;
+        bool startUp = true;
         int gameWinner = -1;
 
         //
@@ -37,11 +38,34 @@ namespace ClassGame {
                 if (gameOver) {
                     ImGui::Text("Game Over!");
                     ImGui::Text("Winner: %d", gameWinner);
-                    if (ImGui::Button("Reset Game")) {
+                    if (ImGui::Button("Reset Game (Player vs Player)")) {
                         game->stopGame();
                         game->setUpBoard();
                         gameOver = false;
                         gameWinner = -1;
+                    }
+                    if (ImGui::Button("Reset Game (Player vs AI)")) {
+                        game->stopGame();
+                        game->setUpBoard();
+                        game->setAIPlayer(1);
+                        gameOver = false;
+                        gameWinner = -1;
+                    }
+                }
+                else if(startUp){
+                    ImGui::Text("Welcome to Chess!");
+                    ImGui::Text("Select a mode to begin.");
+                    if (ImGui::Button("Player vs Player")) {
+                        game->stopGame();
+                        game->setUpBoard();
+                        //no AI player!
+                        startUp = false;
+                    }
+                    if (ImGui::Button("Player vs AI")) {
+                        game->stopGame();
+                        game->setUpBoard();
+                        game->setAIPlayer(1);
+                        startUp = false;
                     }
                 }
                 ImGui::End();

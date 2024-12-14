@@ -11,13 +11,25 @@ Chess::Chess()
     myState = new ChessState();
 }
 
-Chess::ChessState::ChessState(){
+ChessState::ChessState(){
     for(int i = 0; i < 4; i++){ // 4 = num of bools in canCastle
         canCastle[i] = true;
     }
     EnPassantSpace = -1;
     halfMoves = 0;
     totalMoves = 0;
+}
+
+ChessState::ChessState(const ChessState& oldState){
+    for(int i = 0; i < 4; i++){ // 4 = num of bools in canCastle
+        canCastle[i] = oldState.canCastle[i];
+    }
+    EnPassantSpace = oldState.EnPassantSpace;
+    halfMoves = oldState.halfMoves;
+    totalMoves = oldState.totalMoves;
+    for(int i = 0; i < 64; i++){
+        myBoard[i/8][i%8] = oldState.myBoard[i/8][i%8];
+    }
 }
 
 Chess::~Chess()
@@ -64,18 +76,17 @@ void Chess::setUpBoard()
     }
 
     //setup pieces. 0=W,1=B
-    /*
     FENtoBoard("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
-    for(bool i : myState->canCastle){
-        i = true;
+    for(int i = 0; i < 4; i++){ // 4 = num of bools in canCastle
+        myState->canCastle[i] = true;
     }
-    */
     //FENtoBoard("5k2/8/8/8/8/8/8/4K2R w K - 0 1"); // white can castle
     //FENtoBoard("3k4/8/8/8/8/8/8/R3K3 w Q - 0 1"); // white can castle queen side
-    FENtoBoard("r3k2r/1b4bq/8/8/8/8/7B/R3K2R w KQkq - 0 1"); // white can castle both sides
+    //FENtoBoard("r3k2r/1b4bq/8/8/8/8/7B/R3K2R w KQkq - 0 1"); // white can castle both sides
     //FENtoBoard("2K2r2/4P3/8/8/8/8/8/3k4 w - - 0 1"); // white can promote to queen
     //FENtoBoard("4k3/1P6/8/8/8/8/K7/8 w - - 0 1"); // white can promote to queen
 
+    boardToArray(myState->myBoard);
     //generate moves for starting player
     generateMoves();
 }
@@ -98,7 +109,7 @@ bool Chess::canBitMoveFrom(Bit &bit, BitHolder &src)
     if(potentialMoves[srcSquare.getSquareIndex()] != nullptr){
         movable= true;
         for(int i = 0; i < potentialMoves[srcSquare.getSquareIndex()]->size(); i++){
-            int spot = (*potentialMoves[srcSquare.getSquareIndex()])[i];
+            int spot = (*potentialMoves[srcSquare.getSquareIndex()])[i] % 128; //remove 128 from special moves
             _grid[spot/8][spot%8].setMoveHighlighted(true);
         }
     }
@@ -110,7 +121,7 @@ bool Chess::canBitMoveFromTo(Bit& bit, BitHolder& src, BitHolder& dst)
     ChessSquare& srcSquare = static_cast<ChessSquare&>(src);
     ChessSquare& dstSquare = static_cast<ChessSquare&>(dst);
     for (int i =0; i < potentialMoves[srcSquare.getSquareIndex()]->size(); i++){
-        if((*potentialMoves[srcSquare.getSquareIndex()])[i] == dstSquare.getSquareIndex()){
+        if((*potentialMoves[srcSquare.getSquareIndex()])[i] % 128 == dstSquare.getSquareIndex()){
             return true;
         }
     }
@@ -210,10 +221,17 @@ void Chess::bitMovedFromTo(Bit &bit, BitHolder &src, BitHolder &dst)
     //MOVE COUNTER
     myState->halfMoves += 1;
     myState->totalMoves = myState->halfMoves / 2;
+    //Update array rep in state
+    boardToArray(myState->myBoard);
     //wrap up turn
     clearHighlights(); //clear highlights from move
     endTurn();
     generateMoves(); //generate moves for new current player
+    //if AI, run as start of following turn
+    if (gameHasAI() && getCurrentPlayer() && getCurrentPlayer()->isAIPlayer()) 
+    {
+        updateAI();
+    }
 }
 
 //helper function, records what moves the piece can perform into the possibleMoves variable.
@@ -439,6 +457,176 @@ std::vector<int>* Chess::getPossibleMoves(Bit &bit, BitHolder &src){
     return moveListLocation;
 }
 
+//helper function, records what moves the piece can perform into the possibleMoves variable.
+//returns how many moves there are. USES AN ARRAY REP OF THE BOARD
+//bit = location on board[][]
+std::vector<int>* Chess::getPossibleMovesFromArray(int bit, int board[8][8]){
+    std::vector<int>* moveList = new std::vector<int>;
+    //bitGT = gametag. pulled here since we need it often
+    int bitGT = board[bit/8][bit%8];
+    //bitR is row and BitC is column. also pulled here due to frequently using it below
+    int bitR = bit / 8;
+    int bitC = bit % 8;
+    switch (bitGT % 128) // get remainder after 128 to get piece num
+    {
+    case Pawn:
+    {
+        int direction = 1;
+        //0=W,1=B
+        if(bitGT / 128 == 1){
+            direction *= -1; //B goes down, W goes up
+        }
+        //add the 1 move forward(s)
+        if(0 <= bitR + direction && 7 >= bitR + direction){
+            if(board[bitR + direction][bitC] == 0){
+                moveList->push_back(bit + 8*direction);
+            }
+
+            //add diagonals (done here since we know there's room vertically)
+            for(int i=-1;i<=1;i+=2){
+                if(0 <= bitC + i && 7 >= bitC + i){
+                    if(board[bitR + direction][bitC + i] != 0 //diagonal for piece capture only
+                    && board[bitR + direction][bitC + i] / 128 != bitGT / 128){
+                        moveList->push_back(bit + 8*direction + i);
+                    }
+                    else if(myState->EnPassantSpace == bit + 8*direction + i){ //..or en passant
+                        moveList->push_back(bit + 8*direction + i + 128); //128 for special moves
+                    }
+                }
+            }
+        }
+        //add the 2 move forward
+        if(bitR == 1 + 5 * (bitGT / 128)){ //2 when W, 6 when B
+            if(board[bitR + 2*direction][bitC] == 0 && board[bitR + direction][bitC] == 0){ //only when empty space between
+                    moveList->push_back(bit + 16*direction);
+            }
+        }   
+    }
+        break;
+    case Knight:
+    {
+        int directions[4] = {-2,-1,1,2};
+        for(int x : directions){
+            for(int y : directions){
+                if(abs(x) == abs(y)){ //skip when two 2s or two 1s; it should always be a 2 and a 1
+                    continue;
+                }
+                //skip when out of range
+                if(0>bitR + x || 7<bitR + x
+                    || 0>bitC + y || 7<bitC + y){
+                    continue;
+                }
+
+                if(board[bitR + x][bitC + y] == 0
+                    || board[bitR + x][bitC + y] / 128 != bitGT / 128){
+                    moveList->push_back(bit + 8*x + y);
+                }
+            }
+        }
+    }
+        break;
+    case Bishop:
+    {
+        moveList = getStraightPaths(bit,board);
+    }
+        break;
+    case Rook:
+    {
+        moveList = getStraightPaths(bit,board);
+    }
+        break;
+    case Queen:
+    {
+        moveList = getStraightPaths(bit,board);
+    }
+        break;
+    case King:
+        for(int x = -1; x <= 1; x++){
+            if(0 > bitR + x || 7 < bitR + x){
+                continue; //skip if out of board
+            }
+            for(int y = -1; y <= 1; y++){
+                if(0 > bitC + y || 7 < bitC + y){
+                    continue; //skip if out of board
+                }
+                //if a neightboring spot is empty, or if enemies, then it's a valid move
+                if(board[bitR + x][bitC + y] == 0
+                    || board[bitR + x][bitC + y] / 128 != bitGT / 128){
+                    moveList->push_back(bit + 8*x + y);
+                }
+            }
+        }
+        //consider castling
+        if(myState->canCastle[2*(bitGT / 128)]){ //left castle
+            //if all 3 between pieces are empty, can castle
+            //std::cout<<(board[bitR][bitC-1] == 0)<<(board[bitR][bitC-2] == 0)<<(board[bitR][bitC-3] == 0)<<std::endl;
+            if(board[bitR][bitC-1] == 0 && board[bitR][bitC-2] == 0 && board[bitR][bitC-3] == 0){
+                moveList->push_back(bit - 2 + 128); //128 to signal special move
+            }
+        
+        }
+        if(myState->canCastle[2*(bitGT / 128) + 1]){ //right castle
+            //if all 3 between pieces are empty, can castle
+            if(board[bitR][bitC+1] == 0 && board[bitR][bitC+2] == 0){
+                moveList->push_back(bit + 2 + 128); //128 to signal special move
+            }
+        }
+        break;
+    default:
+        std::cout<<"default error"<<std::endl;
+        break;
+    }
+    std::vector<int>* moveListLocation = moveList;
+    return moveListLocation;
+}
+
+//Helper function for getPossibleMovesFromArray(), handling rook/bishop/queen, which use the same math.
+//Calling for a diff piece than one of those can result in bugs
+std::vector<int>* Chess::getStraightPaths(int bit, int board[8][8]){
+    std::vector<int>* moveList = new std::vector<int>;
+    //bitGT = gametag. pulled here since we need it often
+    int bitGT = board[bit/8][bit%8];
+    int row = bit / 8;
+    int col = bit % 8;
+    for(int x = -1; x <= 1; x++){
+        for(int y = -1; y <= 1; y++){
+            if(bitGT % 128 == Bishop){
+                if((x == 0 && y == 0)
+                    || !(x != 0 && y != 0)){ //as a bishop, skip any combos that wouldn't give diagonals
+                    continue;
+                }
+            }
+            else if(bitGT % 128 == Rook){
+                if((x == 0 && y == 0)
+                    || !(x == 0 || y == 0)){ //as a rook, skip any combos that would give diagonals
+                        continue;
+                }
+            }
+            if((x == 0 && y == 0)){ //skip the 0,0 direction, as it's not a real direction. Done for all pieces
+                continue;
+            }
+
+            for(int i = 1; i < 8; i++){
+                if(0>col+i*y || 7<col+i*y || 0>row+i*x || 7<row+i*x){ //stop when out of range
+                    break;
+                }
+                else if(board[row+i*x][col+i*y] == 0){
+                    moveList->push_back(8*(row+i*x) + col+i*y);
+                }
+                else{ //not empty, will break
+                    //add move if the non-empty spot has an enemy piece
+                    if(board[row+i*x][col+i*y] / 128 != bitGT / 128){
+                        moveList->push_back(8*(row+i*x) + col+i*y);
+                    }
+                    break;
+                }
+            }
+        }
+    }
+    std::vector<int>* moveListLocation = moveList;
+    return moveListLocation;
+}
+
 //helper function, clears all highlights on the board
 void Chess::clearHighlights(){
     for(int i = 0; i < 64; i++){
@@ -461,7 +649,8 @@ void Chess::generateMoves(){
         } //if neither, then it's the player's piece, and could make a move
         else{
             std::vector<int>* myMoveList = nullptr;
-            myMoveList = getPossibleMoves(*_grid[i/8][i%8].bit(),_grid[i/8][i%8]);
+            //myMoveList = getPossibleMoves(*_grid[i/8][i%8].bit(),_grid[i/8][i%8]);
+            myMoveList = getPossibleMovesFromArray(i, myState->myBoard);
             if(myMoveList->size() == 0){ //if piece cannot move, nullptr
                 potentialMoves[i] = nullptr;
             }
@@ -599,6 +788,18 @@ void Chess::setPiece(int pos, int player, ChessPiece piece){
     _grid[pos / 8][pos % 8].setBit(bit);
 }
 
+//helper function, returns an array representing the board
+void Chess::boardToArray(int targetArray[8][8]){
+    for(int i = 0; i<64;i++){
+        if(_grid[i / 8][i % 8].empty()){
+            targetArray[i / 8][i % 8] = 0;
+        }
+        else{
+            targetArray[i / 8][i % 8] = _grid[i / 8][i % 8].bit()->gameTag();
+        }
+    }
+}
+
 //
 // free all the memory used by the game on the heap
 //
@@ -687,11 +888,209 @@ void Chess::setStateString(const std::string &s)
 //
 void Chess::updateAI() 
 {
-    //note to self:
-    //the current move gen code relies on bitholder board.
-    //You should make sure to modify that code so that it uses integers instead,
-    //with the regular gen function pulling the ints from the biholder board, and the AI using it's own board
-    //Also, find a way to implement the special moves (castle+enpassant) into the reg move lists.
-    //each move has a max of 64; perhaps you could use the remaining bit
+    int target = -1; //impossible value, will get replaced in below loop
+    int movedBit = -1; //the bit moved. the target is the move performed to move it
+    int bestVal = -999; //lower than all other vals
+    //std::cout << target <<" "<< bestVal << std::endl;
+    ChessAI* myAI = clone(1);
+    int enemyPlayer = 1 - myAI->AIPlayerNumber; //the playerNumber of the enemy player
+
+    //state tracker. keeps track of default state. done here since it can't be reasonably tracked in unperformMove()
+    int currentCastles[4];
+    for(int i = 0; i < 4; i++){ // 4 = num of bools in canCastle
+        currentCastles[i] = myAI->myState->canCastle[i];
+    }
+    int currEPSpace = myAI->myState->EnPassantSpace;
+    for(int i = 0; i < 64; i++){
+        //9999 = infinity in this loop, as no other value should be higher than it
+        int topAlpha = -9999;
+        int topBeta = 9999;
+        if(potentialMoves[i] != nullptr){
+            for(int move : *(potentialMoves[i])){
+                std::cout << "move"<<move;
+                //perform move
+                myAI->performMoveOnArray(i, move, myAI->myState->myBoard);
+                int turnVal = -myAI->negamax(myAI,0,enemyPlayer, -topBeta, -topAlpha);
+                //un-perform move
+                myAI->unperformMove(i, move, myAI->myState->myBoard);
+                //revert state
+                for(int i = 0; i < 4; i++){ // 4 = num of bools in canCastle
+                    myAI->myState->canCastle[i] = currentCastles[i];
+                }
+                myAI->myState->EnPassantSpace = currEPSpace;
+                //std::cout << " "<<turnVal;
+                //if turnVal is bigger then current best turn, replace it
+                if(turnVal > bestVal){
+                    bestVal = turnVal;
+                    target = move;
+                    movedBit = i;
+
+                    //only updates when bestVal is bigger, so only need to run check inside of here
+                    topAlpha = std::max(topAlpha, bestVal);
+                    //no break check comparing alpha>=beta needed, as it's impossible for topBeta to decrease at the top level,
+                    //making such a check impossible to pass
+                }
+            }
+        }
+    }
+
+    setPiece(target % 128, myAI->AIPlayerNumber, (ChessPiece)(myState->myBoard[movedBit%8][movedBit/8] % 128));
+
+    endTurn();
 }
 
+int ChessAI::negamax(ChessAI* state, int depth, int playerColor, int alpha, int beta){
+    return 0;
+}
+
+//makes the AI
+ChessAI* Chess::clone(int AInum) 
+{
+    ChessAI* newGame = new ChessAI();
+    //setup board
+    newGame->myState = new ChessState(*myState);
+    //boardToArray(newGame->myState->myBoard); //sadly can't access myBoard for some reason
+    //as such we instead just copy from the current state board
+    //Tracking which player is AI, as there's no way to check from inside the AI
+    newGame->AIPlayerNumber = AInum;
+    return newGame;
+}
+
+void ChessAI::performMoveOnArray(int bit, int move, int targetArray[8][8]){
+    int bitGT = targetArray[bit/8][bit%8];
+    int pos = move % 128; //remove 128 that signals a special move if needed
+    targetArray[pos/8][pos%8] = bitGT;
+    targetArray[bit/8][bit%8] = 0;
+    if(move / 128 == 1){ //special move handler
+        if(bitGT % 128 == Pawn){ //en passant
+            //if bitGT=0, then W captures B (on row 4). if 1, then B cap W (on row 3)
+            targetArray[4 - bitGT / 128][pos%8] = 0;
+        }
+        else if(bitGT % 128 == King){ //castling
+            switch(bit){//kings
+            case 4: //W
+                //if move left, queenside
+                if(pos == 2){
+                    //move the tower piece
+                    targetArray[0][3] = targetArray[0][0];
+                    targetArray[0][0] = 0;
+                }//if right, kingside
+                else if(pos == 6){
+                    targetArray[0][5] = targetArray[0][7];
+                    targetArray[0][7] = 0;
+                }
+                myState->canCastle[0] = false;
+                myState->canCastle[1] = false;
+                break;
+            case 60: //B
+                //if move left, queenside
+                if(pos == 58){
+                    //move the tower piece
+                    targetArray[7][3] = targetArray[7][0];
+                    targetArray[7][0] = 0;
+                }//if right, kingside
+                else if(pos == 62){
+                    targetArray[7][5] = targetArray[7][7];
+                    targetArray[7][7] = 0;
+                }
+                myState->canCastle[2] = false;
+                myState->canCastle[3] = false;
+                break;
+            }
+        }
+    }
+    //update state
+    //castling
+    //CASTLING
+    //below statements always ran, since they start true and can't become true again
+    switch(bit){ //when the piece moves
+        //towers
+        case 0:
+            myState->canCastle[0] = false; break;
+        case 7:
+            myState->canCastle[1] = false; break;
+        case 56:
+            myState->canCastle[2] = false; break;
+        case 63:
+            myState->canCastle[3] = false; break;
+        //kings
+        case 4: //W
+            myState->canCastle[0] = false;
+            myState->canCastle[1] = false;
+            break;
+        case 60: //B
+            myState->canCastle[2] = false;
+            myState->canCastle[3] = false;
+            break;
+    }
+    switch(pos){ //when the piece is captured
+        //towers
+        case 0:
+            myState->canCastle[0] = false; break;
+        case 7:
+            myState->canCastle[1] = false; break;
+        case 56:
+            myState->canCastle[2] = false; break;
+        case 63:
+            myState->canCastle[3] = false; break;
+        //kings
+        case 4: //W
+            myState->canCastle[0] = false; break;
+            myState->canCastle[1] = false; break;
+        case 59: //B
+            myState->canCastle[2] = false; break;
+            myState->canCastle[3] = false; break;
+    }
+    //en passant
+    if(bitGT % 128 == Pawn && (bit/8) - (pos/8) == 2){ //2 row diff = pawn jumped 2 and is en passantable
+        myState->EnPassantSpace = bit + 8;
+    }
+    else{
+        myState->EnPassantSpace = -1;
+    }
+    myState->halfMoves += 1;
+    myState->totalMoves = myState->halfMoves / 2;
+}
+
+void ChessAI::unperformMove(int bit, int move, int targetArray[8][8]){
+    int pos = move % 128; //remove 128 that signals a special move if needed
+    targetArray[bit/8][bit%8] = targetArray[pos/8][pos%8];
+    targetArray[pos/8][pos%8] = 0;
+    if(move / 128 == 1){ //special move handler. DOES NOT REVERT STATE TRACKING, MUST BE DONE ELSEWHERE
+        int bitGT = targetArray[bit/8][bit%8];
+        if(bitGT % 128 == Pawn){ //en passant
+            //if bitGT=0, then W captures B (on row 4). if 1, then B cap W (on row 3)
+            targetArray[4 - bitGT / 128][pos%8] = 0;
+        }
+        else if(bitGT % 128 == King){ //castling
+            switch(bit){//kings
+            case 4: //W
+                //if move left, queenside
+                if(pos == 2){
+                    //move the tower piece
+                    targetArray[0][0] = targetArray[0][3];
+                    targetArray[0][3] = 0;
+                }//if right, kingside
+                else if(pos == 6){
+                    targetArray[0][7] = targetArray[0][5];
+                    targetArray[0][5] = 0;
+                }
+                break;
+            case 60: //B
+                //if move left, queenside
+                if(pos == 58){
+                    //move the tower piece
+                    targetArray[7][0] = targetArray[7][3];
+                    targetArray[7][3] = 0;
+                }//if right, kingside
+                else if(pos == 62){
+                    targetArray[7][7] = targetArray[7][5];
+                    targetArray[7][5] = 0;
+                }
+                break;
+            }
+        }
+    }
+    myState->halfMoves += 1;
+    myState->totalMoves = myState->halfMoves / 2;
+}
