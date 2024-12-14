@@ -974,7 +974,7 @@ int ChessAI::negamax(ChessAI* myAI, int depth, int playerColor, int alpha, int b
     //}
     //if either player won, that's the result
     int boardState = myAI->evaluateBoard();
-    if(/*boardState != 0 || */depth > 3){ //stops when surpassing the 3rd layer of depth
+    if(/*boardState != 0 || */depth >= 3){ //stops when reaching the 3rd layer of depth (0 at base, 1&2 in negamax)
         if(playerColor == AIPlayerNumber){
             result = boardState;
         }
