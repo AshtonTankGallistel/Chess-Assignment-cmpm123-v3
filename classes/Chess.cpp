@@ -460,7 +460,7 @@ std::vector<int>* Chess::getPossibleMoves(Bit &bit, BitHolder &src){
 //helper function, records what moves the piece can perform into the possibleMoves variable.
 //returns how many moves there are. USES AN ARRAY REP OF THE BOARD
 //bit = location on board[][]
-std::vector<int>* Chess::getPossibleMovesFromArray(int bit, int board[8][8]){
+std::vector<int>* getPossibleMovesFromArray(int bit, int board[8][8], ChessState& cState){
     std::vector<int>* moveList = new std::vector<int>;
     //bitGT = gametag. pulled here since we need it often
     int bitGT = board[bit/8][bit%8];
@@ -489,7 +489,7 @@ std::vector<int>* Chess::getPossibleMovesFromArray(int bit, int board[8][8]){
                     && board[bitR + direction][bitC + i] / 128 != bitGT / 128){
                         moveList->push_back(bit + 8*direction + i);
                     }
-                    else if(myState->EnPassantSpace == bit + 8*direction + i){ //..or en passant
+                    else if(cState.EnPassantSpace == bit + 8*direction + i){ //..or en passant
                         moveList->push_back(bit + 8*direction + i + 128); //128 for special moves
                     }
                 }
@@ -557,7 +557,7 @@ std::vector<int>* Chess::getPossibleMovesFromArray(int bit, int board[8][8]){
             }
         }
         //consider castling
-        if(myState->canCastle[2*(bitGT / 128)]){ //left castle
+        if(cState.canCastle[2*(bitGT / 128)]){ //left castle
             //if all 3 between pieces are empty, can castle
             //std::cout<<(board[bitR][bitC-1] == 0)<<(board[bitR][bitC-2] == 0)<<(board[bitR][bitC-3] == 0)<<std::endl;
             if(board[bitR][bitC-1] == 0 && board[bitR][bitC-2] == 0 && board[bitR][bitC-3] == 0){
@@ -565,7 +565,7 @@ std::vector<int>* Chess::getPossibleMovesFromArray(int bit, int board[8][8]){
             }
         
         }
-        if(myState->canCastle[2*(bitGT / 128) + 1]){ //right castle
+        if(cState.canCastle[2*(bitGT / 128) + 1]){ //right castle
             //if all 3 between pieces are empty, can castle
             if(board[bitR][bitC+1] == 0 && board[bitR][bitC+2] == 0){
                 moveList->push_back(bit + 2 + 128); //128 to signal special move
@@ -582,7 +582,7 @@ std::vector<int>* Chess::getPossibleMovesFromArray(int bit, int board[8][8]){
 
 //Helper function for getPossibleMovesFromArray(), handling rook/bishop/queen, which use the same math.
 //Calling for a diff piece than one of those can result in bugs
-std::vector<int>* Chess::getStraightPaths(int bit, int board[8][8]){
+std::vector<int>* getStraightPaths(int bit, int board[8][8]){
     std::vector<int>* moveList = new std::vector<int>;
     //bitGT = gametag. pulled here since we need it often
     int bitGT = board[bit/8][bit%8];
@@ -650,7 +650,7 @@ void Chess::generateMoves(){
         else{
             std::vector<int>* myMoveList = nullptr;
             //myMoveList = getPossibleMoves(*_grid[i/8][i%8].bit(),_grid[i/8][i%8]);
-            myMoveList = getPossibleMovesFromArray(i, myState->myBoard);
+            myMoveList = getPossibleMovesFromArray(i, myState->myBoard, *myState);
             if(myMoveList->size() == 0){ //if piece cannot move, nullptr
                 potentialMoves[i] = nullptr;
             }
@@ -942,8 +942,79 @@ void Chess::updateAI()
     bitMovedFromTo(*_grid[(target%128) / 8][(target%128) % 8].bit(),_grid[movedBit/8][movedBit%8],_grid[(target%128) / 8][(target%128) % 8]);
 }
 
-int ChessAI::negamax(ChessAI* state, int depth, int playerColor, int alpha, int beta){
-    return 0;
+int ChessAI::negamax(ChessAI* myAI, int depth, int playerColor, int alpha, int beta){
+    int result = -99; //lower than all possible negamax results
+    //if board is full, set result to 0 (overriden later if there's a win)
+    //if(myAI->isBoardFull()){
+    //    result = 0;
+    //}
+    //if either player won, that's the result
+    int boardState = 0; //myAI->evaluateBoard();
+    if(boardState != 0 || depth > 3){ //stops when surpassing the 3rd ayer of depth
+        if(playerColor == AIPlayerNumber){
+            result = boardState;
+        }
+        else{ //opponent performed gameending move, meaning the value of the results is inverted
+            result = -boardState;
+        }
+    }
+    else if(result == -99){ //If no winner (nor a tie), run through possible turns.
+        //generate moves
+        std::vector<int>* turnMoves[64];
+        for(int i = 0;i<64;i++){
+            if(myAI->myState->myBoard[i/8][i%8] == 0){ //if empty, no moves
+                turnMoves[i] = nullptr;
+            } //if not player's piece, no moves
+            else if(playerColor != myAI->myState->myBoard[i/8][i%8] / 128){
+                turnMoves[i] = nullptr;
+            } //if neither, then it's the player's piece, and could make a move
+            else{
+                std::vector<int>* myMoveList = nullptr;
+                //myMoveList = getPossibleMoves(*_grid[i/8][i%8].bit(),_grid[i/8][i%8]);
+                myMoveList = getPossibleMovesFromArray(i, myAI->myState->myBoard, *(myAI->myState));
+                if(myMoveList->size() == 0){ //if piece cannot move, nullptr
+                    turnMoves[i] = nullptr;
+                }
+                else{ //if piece can move, add the list for that spot
+                    //std::cout<<i<<std::endl;
+                    turnMoves[i] = myMoveList;
+                }
+            }
+        }
+        //perform negamax
+        //state tracker. keeps track of default state. done here since it can't be reasonably tracked in unperformMove()
+        int currentCastles[4];
+        for(int i = 0; i < 4; i++){ // 4 = num of bools in canCastle
+            currentCastles[i] = myAI->myState->canCastle[i];
+        }
+        int currEPSpace = myAI->myState->EnPassantSpace;
+        //std::cout << depth<< " ";
+        for(int i = 0;i<64;i++){
+            if(turnMoves[i] != nullptr){
+                for(int move : *(turnMoves[i])){
+                    //std::cout << myAI->_grid[i/3][i%3];
+                    //perform move
+                    myAI->performMoveOnArray(i, move, myAI->myState->myBoard);
+                    //negamax
+                    result = std::max(result, -negamax(myAI,depth + 1, 1 - playerColor, -beta, -alpha));
+                    //un-perform move
+                    myAI->unperformMove(i, move, myAI->myState->myBoard);
+                    //revert state
+                    for(int i = 0; i < 4; i++){ // 4 = num of bools in canCastle
+                        myAI->myState->canCastle[i] = currentCastles[i];
+                    }
+                    myAI->myState->EnPassantSpace = currEPSpace;
+
+                    alpha = std::max(alpha, result);
+                    if(alpha >= beta){ //optimal move found, no need for further checking of moves (Alpha-beta pruning)
+                        //std::cout << "a"<< alpha<<"b"<< beta << std::endl;
+                        break;
+                    }
+                }
+            }
+        }    
+    }
+    return result;
 }
 
 //makes the AI

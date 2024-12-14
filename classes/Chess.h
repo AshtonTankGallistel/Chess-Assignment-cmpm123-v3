@@ -41,6 +41,10 @@ struct ChessAI
 
     int AIPlayerNumber; //which player is the AI
 };
+//HELPER FUNCTION FOR FINDING MOVES FOR A PIECE USING AN INT REPRESENTATION OF THE BOARD
+std::vector<int>*   getPossibleMovesFromArray(int bit, int board[8][8], ChessState& cState);
+//HELPER FUNCTION FOR GETPOSSIBLEMOVESFROMARRAY. GETS MOVES FOR BISHOP/ROOK/QUEEN, WHICH USE THE SAME MATH
+std::vector<int>*   getStraightPaths(int bit, int board[8][8]);
 
 //
 // the main game class
@@ -65,10 +69,6 @@ public:
     void        bitMovedFromTo(Bit &bit, BitHolder &src, BitHolder &dst) override;
     //HELPER FUNCTION FOR ABOVE 4 FUNCS, FINDS OUT WHICH MOVES A PIECE CAN PERFORM
     std::vector<int>*   getPossibleMoves(Bit &bit, BitHolder &src);
-    //HELPER FUNCTION FOR FINDING MOVES FOR A PIECE USING AN INT REPRESENTATION OF THE BOARD
-    std::vector<int>*   getPossibleMovesFromArray(int bit, int board[8][8]);
-    //HELPER FUNCTION FOR GETPOSSIBLEMOVESFROMARRAY. GETS MOVES FOR BISHOP/ROOK/QUEEN, WHICH USE THE SAME MATH
-    std::vector<int>*   getStraightPaths(int bit, int board[8][8]);
     //HELPER FUNCTION, CLEARS ALL HIGHLIGHTS
     void        clearHighlights();
     //MOVE GENERATOR FUNCTION. GETS ALL POSSIBLE MOVES FOR THE CURRENT TURN
