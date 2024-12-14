@@ -934,9 +934,12 @@ void Chess::updateAI()
         }
     }
 
-    setPiece(target % 128, myAI->AIPlayerNumber, (ChessPiece)(myState->myBoard[movedBit%8][movedBit/8] % 128));
+    _grid[(target%128) / 8][(target%128) % 8].setBit(_grid[movedBit/8][movedBit%8].bit());
+    _grid[(target%128) / 8][(target%128) % 8].bit()->setPosition(_grid[(target%128) / 8][(target%128) % 8].getPosition());
+    _grid[movedBit/8][movedBit%8].setBit(nullptr);
 
-    endTurn();
+    //endTurn(); //done in bitMovedFromTo(), which also runs all the other nessecary checks that we need.
+    bitMovedFromTo(*_grid[(target%128) / 8][(target%128) % 8].bit(),_grid[movedBit/8][movedBit%8],_grid[(target%128) / 8][(target%128) % 8]);
 }
 
 int ChessAI::negamax(ChessAI* state, int depth, int playerColor, int alpha, int beta){
@@ -961,6 +964,10 @@ void ChessAI::performMoveOnArray(int bit, int move, int targetArray[8][8]){
     int pos = move % 128; //remove 128 that signals a special move if needed
     targetArray[pos/8][pos%8] = bitGT;
     targetArray[bit/8][bit%8] = 0;
+    //check if pawn reached end of board to promote
+    if(bit % 128 == Pawn && (pos/8 == 0 || pos/8 == 7)){
+        bit = 128*(bit/128) + Queen;
+    }
     if(move / 128 == 1){ //special move handler
         if(bitGT % 128 == Pawn){ //en passant
             //if bitGT=0, then W captures B (on row 4). if 1, then B cap W (on row 3)
