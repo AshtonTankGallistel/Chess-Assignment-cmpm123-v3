@@ -811,6 +811,24 @@ void Chess::stopGame()
 Player* Chess::checkForWinner()
 {
     // check to see if either player has won
+    bool BKing = false;
+    bool WKing = false;
+    for(int i = 0; i <64; i++){
+        if(!_grid[i/8][i%8].empty()){
+            switch(_grid[i/8][i%8].bit()->gameTag()){
+                case King:
+                    WKing = true; break;
+                case King + 128:
+                    BKing = true; break;
+            }
+        }
+    }
+    if(!WKing){ // no white king, black wins
+        return getPlayerAt(1);
+    }
+    else if(!BKing){ // no black king, white wins
+        return getPlayerAt(0);
+    }
     return nullptr;
 }
 
